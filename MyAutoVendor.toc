@@ -1,0 +1,11 @@
+## Interface: 30400
+## Title: MyAutoVendor
+## Notes: Auto-sell and keep list with drag-and-drop
+## Author: Christian
+## Version: 2.0
+## SavedVariables: MyAutoVendorDB
+## Dependencies: Ace3
+
+Core.lua
+UI.lua
+Config.lua
