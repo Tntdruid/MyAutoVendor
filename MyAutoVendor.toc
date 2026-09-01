@@ -7,5 +7,6 @@
 ## Dependencies: Ace3
 
 Core.lua
-Config.lua
 UI.lua
+TabTooltips.lua
+Config.lua
