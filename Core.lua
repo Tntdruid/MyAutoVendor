@@ -97,7 +97,7 @@ function MyAutoVendor:SetupMinimap()
 end
 
 ---------------------------------------------------------------------
--- AutoSell (NY: detaljeret output)
+-- AutoSell (clean output)
 ---------------------------------------------------------------------
 function MyAutoVendor:OnMerchantShow()
     if not self.profile.autoSell then return end
@@ -131,9 +131,9 @@ function MyAutoVendor:OnMerchantShow()
     end
 
     if #soldItems > 0 then
-        self:Print("|cff00ff00Solgte " .. #soldItems .. " item(s):|r")
+        print("|cff00ff00Solgte " .. #soldItems .. " item(s):|r")
         for _, info in ipairs(soldItems) do
-            self:Print(string.format(
+            print(string.format(
                 " - %s x%d (vendor: %s; samlet: %s)",
                 info.name,
                 info.count,
@@ -141,23 +141,23 @@ function MyAutoVendor:OnMerchantShow()
                 FormatCopper(info.value)
             ))
         end
-        self:Print("|cffffff00Total: " .. FormatCopper(total) .. "|r")
+        print("|cffffff00Total: " .. FormatCopper(total) .. "|r")
     end
 end
 
 ---------------------------------------------------------------------
--- Add / Remove / Undo (NY: itemnavn)
+-- Add / Remove / Undo (clean output)
 ---------------------------------------------------------------------
 function MyAutoVendor:AddItem(input)
     local id = toItemId(input)
-    if not id then return self:Print("Ugyldigt item") end
+    if not id then return print("Ugyldigt item") end
 
     local name = GetItemInfo(id) or ("item:"..id)
     local listName = self.activeTab == "sell" and "sellList" or "keepList"
 
     SaveMeta(self, listName, id)
 
-    self:Print("Tilføjet: " .. name)
+    print("Tilføjet: " .. name)
 
     if self.RefreshUI then self:RefreshUI() end
 end
@@ -172,19 +172,19 @@ function MyAutoVendor:RemoveItem(input)
     if list[id] then
         table.insert(self._undoStack, { id=id, meta=list[id], tab=self.activeTab })
         list[id] = nil
-        self:Print("Fjernet " .. id .. " (kan fortrydes)")
+        print("Fjernet " .. id .. " (kan fortrydes)")
         if self.RefreshUI then self:RefreshUI() end
     end
 end
 
 function MyAutoVendor:Undo()
     local u = table.remove(self._undoStack)
-    if not u then return self:Print("Intet at fortryde") end
+    if not u then return print("Intet at fortryde") end
 
     local listName = u.tab == "sell" and "sellList" or "keepList"
     self.char[self._charKey][listName][u.id] = u.meta
 
-    self:Print("Fortrudt fjernelse af " .. u.id)
+    print("Fortrudt fjernelse af " .. u.id)
     if self.RefreshUI then self:RefreshUI() end
 end
 
@@ -194,6 +194,6 @@ end
 function MyAutoVendor:HandleSlash(msg)
     if msg == "ui" then return self:ToggleUI() end
     if msg == "undo" then return self:Undo() end
-    self:Print("/mav ui  - åbner UI")
-    self:Print("/mav undo - fortryd sidste fjernelse")
+    print("/mav ui  - åbner UI")
+    print("/mav undo - fortryd sidste fjernelse")
 end
