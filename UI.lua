@@ -1,517 +1,320 @@
+-- UI.lua – MyAutoVendor (AzerothCore + Ace3)
 local ADDON_NAME = ...
-local MAV = MyAutoVendor
+local addon = _G[ADDON_NAME]
 
----------------------------------------------------------
--- MAIN WINDOW
----------------------------------------------------------
-local frame = nil
+---------------------------------------------------------------------
+-- Helpers
+---------------------------------------------------------------------
+local function CharKey()
+    return (UnitName("player") or "Unknown") .. "-" .. (GetRealmName() or "Realm")
+end
 
-function MAV:OpenUI()
-    if frame and frame:IsShown() then
-        frame:Hide()
-        return
-    end
+local function GetCharDB()
+    addon.char = addon.char or {}
+    addon._charKey = addon._charKey or CharKey()
+    addon.char[addon._charKey] = addon.char[addon._charKey] or {
+        keepList = {},
+        sellList = {}
+    }
+    return addon.char[addon._charKey]
+end
 
-    frame = CreateFrame("Frame", "MyAutoVendorUI", UIParent)
-    frame:SetSize(400, 450)
+local function safe(fn, ...)
+    if type(fn) ~= "function" then return end
+    local ok, err = pcall(fn, ...)
+    if not ok then print("MyAutoVendor ERROR:", err) end
+end
+
+---------------------------------------------------------------------
+-- MAIN FRAME
+---------------------------------------------------------------------
+local function CreateMainFrame()
+    if addon.UIFrame then return addon.UIFrame end
+
+    local frame = CreateFrame("Frame", "MyAutoVendorFrame", UIParent)
+    frame:SetSize(520, 480)
     frame:SetPoint("CENTER")
-    frame:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 }
-    })
-    frame:SetMovable(true)
     frame:EnableMouse(true)
+    frame:SetMovable(true)
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+    frame:Hide()
 
-    -----------------------------------------------------
-    -- TITLE
-    -----------------------------------------------------
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-    title:SetPoint("TOP", 0, -10)
+    local bg = frame:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetTexture(0, 0, 0, 0.6)
+
+    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOP", 0, -12)
     title:SetText("MyAutoVendor")
 
-    -----------------------------------------------------
-    -- TAB BUTTONS
-    -----------------------------------------------------
-    local keepTab = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    keepTab:SetSize(80, 25)
-    keepTab:SetPoint("TOPLEFT", 20, -40)
-    keepTab:SetText("Keep")
-    keepTab:SetScript("OnClick", function()
-        MAV.activeTab = "keep"
-        MAV:RefreshUI()
-    end)
+    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", -6, -6)
 
-    local sellTab = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    sellTab:SetSize(80, 25)
-    sellTab:SetPoint("TOPLEFT", 110, -40)
-    sellTab:SetText("Sell")
-    sellTab:SetScript("OnClick", function()
-        MAV.activeTab = "sell"
-        MAV:RefreshUI()
-    end)
+    ---------------------------------------------------------------------
+    -- TABS
+    ---------------------------------------------------------------------
+    local function MakeTab(x, text)
+        local btn = CreateFrame("Button", nil, frame)
+        btn:SetSize(110, 24)
+        btn:SetPoint("TOPLEFT", x, -40)
 
-    -----------------------------------------------------
-    -- DRAG & DROP ZONE
-    -----------------------------------------------------
-    local dropZone = CreateFrame("Frame", nil, frame)
-    dropZone:SetSize(360, 40)
-    dropZone:SetPoint("TOP", 0, -90)
-    dropZone:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 }
-    })
-    dropZone:SetBackdropColor(0, 0, 0, 0.4)
+        btn.bg = btn:CreateTexture(nil, "BACKGROUND")
+        btn.bg:SetAllPoints()
+        btn.bg:SetTexture(0, 0, 0, 0.2)
 
-    local dzText = dropZone:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    dzText:SetPoint("CENTER")
-    dzText:SetText("Drop item here to add")
+        btn.label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        btn.label:SetPoint("CENTER")
+        btn.label:SetText(text)
 
-    dropZone:SetScript("OnMouseUp", function()
-        MAV:HandleDrop()
-    end)
+        function btn:SetActive(active)
+            if active then
+                btn.bg:SetTexture(0.2, 0.2, 0.2, 0.6)
+                btn.label:SetTextColor(1, 0.85, 0)
+            else
+                btn.bg:SetTexture(0, 0, 0, 0.2)
+                btn.label:SetTextColor(1, 1, 1)
+            end
+        end
 
-    -----------------------------------------------------
-    -- SCROLL FRAME
-    -----------------------------------------------------
-    local scrollFrame = CreateFrame("ScrollFrame", "MyAutoVendorScroll", frame, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", 20, -140)
-    scrollFrame:SetSize(360, 260)
-
-    local content = CreateFrame("Frame", nil, scrollFrame)
-    content:SetSize(360, 260)
-    scrollFrame:SetScrollChild(content)
-
-    MAV.activeScroll = content
-
-    -----------------------------------------------------
-    -- CLOSE BUTTON
-    -----------------------------------------------------
-    local closeBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    closeBtn:SetSize(80, 25)
-    closeBtn:SetPoint("BOTTOM", 0, 20)
-    closeBtn:SetText("Close")
-    closeBtn:SetScript("OnClick", function() frame:Hide() end)
-
-    MAV.activeTab = MAV.activeTab or "keep"
-    MAV:RefreshUI()
-end
-
-function MAV:RefreshUI()
-    if not frame or not MAV.activeScroll then return end
-
-    local list = (MAV.activeTab == "keep") and MyAutoVendorDB.keepList or MyAutoVendorDB.sellList
-
-    -- SORTER LISTEN ALFABETISK EFTER ITEM NAVN
-    local sorted = {}
-    for itemID in pairs(list) do
-        local name = GetItemInfo(itemID) or ("Item " .. itemID)
-        table.insert(sorted, { id = itemID, name = name })
+        return btn
     end
 
-    table.sort(sorted, function(a, b)
-        return a.name < b.name
-    end)
+    local tabKeep = MakeTab(16, "Keep")
+    local tabSell = MakeTab(140, "Sell")
 
-    local content = MAV.activeScroll
+    ---------------------------------------------------------------------
+    -- SCROLL LIST
+    ---------------------------------------------------------------------
+    local scroll = CreateFrame("ScrollFrame", "MyAutoVendorScroll", frame, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 16, -72)
+    scroll:SetPoint("BOTTOMRIGHT", -40, 200)
 
-    -- Fjern gamle rows
-    for _, child in ipairs({ content:GetChildren() }) do
-        child:Hide()
-        child:SetParent(nil)
-    end
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetSize(1, 1)
+    scroll:SetScrollChild(content)
 
-    local y = -10
+    local ROWS = {}
+    local MAX_ROWS = 14
 
-    -- Tilføj nye rows i sorteret rækkefølge
-    for _, item in ipairs(sorted) do
-        local itemID = item.id
-        local name, link = GetItemInfo(itemID)
-        link = link or ("Item " .. itemID)
+    for i = 1, MAX_ROWS do
+        local row = CreateFrame("Button", nil, content)
+        row:SetSize(440, 20)
+        row:SetPoint("TOPLEFT", 0, -(i - 1) * 20)
 
-        local row = CreateFrame("Frame", nil, content)
-        row:SetSize(340, 20)
-        row:SetPoint("TOPLEFT", 10, y)
+        row.bg = row:CreateTexture(nil, "BACKGROUND")
+        row.bg:SetAllPoints()
+        row.bg:SetTexture(0, 0, 0, i % 2 == 0 and 0.18 or 0.12)
 
-        local text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        text:SetPoint("LEFT")
-        text:SetText(link)
+        row.icon = row:CreateTexture(nil, "ARTWORK")
+        row.icon:SetSize(16, 16)
+        row.icon:SetPoint("LEFT", 6, 0)
 
-        local removeBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        removeBtn:SetSize(60, 20)
-        removeBtn:SetPoint("RIGHT")
-        removeBtn:SetText("Remove")
-        removeBtn:SetScript("OnClick", function()
-            MAV:RemoveItem(itemID)
+        row.text = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        row.text:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
+
+        row:SetScript("OnClick", function(self)
+            content.selected = i
+            for _, r in ipairs(ROWS) do r.text:SetTextColor(1, 1, 1) end
+            self.text:SetTextColor(1, 1, 0)
         end)
 
-        y = y - 25
-    end
-
-    content:SetHeight(math.abs(y))
-end
-
----------------------------------------------------------
--- VENDOR BUTTON (under NPC name, WotLK compatible)
----------------------------------------------------------
-local mavVendorButton = nil
-
-local function CreateVendorButton()
-    if not MerchantFrame or not MerchantNameText then return end
-
-    if not mavVendorButton then
-        mavVendorButton = CreateFrame("Button", "MyAutoVendorVendorButton", MerchantFrame, "UIPanelButtonTemplate")
-        mavVendorButton:SetSize(120, 22)
-        mavVendorButton:SetText("MyAutoVendor")
-
-        -- Correct WotLK title frame
-        mavVendorButton:SetPoint("TOPLEFT", MerchantNameText, "BOTTOMLEFT", 0, -8)
-
-        mavVendorButton:SetScript("OnClick", function()
-            MyAutoVendor:OpenUI()
-        end)
-    end
-
-    mavVendorButton:Show()
-end
-
----------------------------------------------------------
--- HOOK INTO MERCHANT_SHOW
----------------------------------------------------------
-function MyAutoVendor:MERCHANT_SHOW()
-    CreateVendorButton()
-
-    -- Your auto-sell logic continues here
-end
-
-local ADDON_NAME = ...
-local MAV = MyAutoVendor
-
----------------------------------------------------------
--- MAIN WINDOW
----------------------------------------------------------
-local frame = nil
-
-function MAV:OpenUI()
-    if frame and frame:IsShown() then
-        frame:Hide()
-        return
-    end
-
-    frame = CreateFrame("Frame", "MyAutoVendorUI", UIParent)
-    frame:SetSize(400, 450)
-    frame:SetPoint("CENTER")
-    frame:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 }
-    })
-    frame:SetMovable(true)
-    frame:EnableMouse(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", frame.StartMoving)
-    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-
-    -----------------------------------------------------
-    -- TITLE
-    -----------------------------------------------------
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-    title:SetPoint("TOP", 0, -10)
-    title:SetText("MyAutoVendor")
-
-    -----------------------------------------------------
-    -- TAB BUTTONS
-    -----------------------------------------------------
-    local keepTab = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    keepTab:SetSize(80, 25)
-    keepTab:SetPoint("TOPLEFT", 20, -40)
-    keepTab:SetText("Keep")
-    keepTab:SetScript("OnClick", function()
-        MAV.activeTab = "keep"
-        MAV:RefreshUI()
-    end)
-
-    local sellTab = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    sellTab:SetSize(80, 25)
-    sellTab:SetPoint("TOPLEFT", 110, -40)
-    sellTab:SetText("Sell")
-    sellTab:SetScript("OnClick", function()
-        MAV.activeTab = "sell"
-        MAV:RefreshUI()
-    end)
-
-    -----------------------------------------------------
-    -- DRAG & DROP ZONE
-    -----------------------------------------------------
-    local dropZone = CreateFrame("Frame", nil, frame)
-    dropZone:SetSize(360, 40)
-    dropZone:SetPoint("TOP", 0, -90)
-    dropZone:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 }
-    })
-    dropZone:SetBackdropColor(0, 0, 0, 0.4)
-
-    local dzText = dropZone:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    dzText:SetPoint("CENTER")
-    dzText:SetText("Drop item here to add")
-
-    dropZone:SetScript("OnMouseUp", function()
-        MAV:HandleDrop()
-    end)
-
-    -----------------------------------------------------
-    -- SCROLL FRAME
-    -----------------------------------------------------
-    local scrollFrame = CreateFrame("ScrollFrame", "MyAutoVendorScroll", frame, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", 20, -140)
-    scrollFrame:SetSize(360, 260)
-
-    local content = CreateFrame("Frame", nil, scrollFrame)
-    content:SetSize(360, 260)
-    scrollFrame:SetScrollChild(content)
-
-    MAV.activeScroll = content
-
-    -----------------------------------------------------
-    -- CLOSE BUTTON
-    -----------------------------------------------------
-    local closeBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    closeBtn:SetSize(80, 25)
-    closeBtn:SetPoint("BOTTOM", 0, 20)
-    closeBtn:SetText("Close")
-    closeBtn:SetScript("OnClick", function() frame:Hide() end)
-
-    MAV.activeTab = MAV.activeTab or "keep"
-    MAV:RefreshUI()
-end
-
----------------------------------------------------------
--- REFRESH UI
----------------------------------------------------------
-function MAV:RefreshUI()
-    if not frame or not MAV.activeScroll then return end
-
-    local list = (MAV.activeTab == "keep") and MyAutoVendorDB.keepList or MyAutoVendorDB.sellList
-
-    local content = MAV.activeScroll
-    for _, child in ipairs({ content:GetChildren() }) do
-        child:Hide()
-        child:SetParent(nil)
-    end
-
-    local y = -10
-
-    for itemID, _ in pairs(list) do
-        local name, link = GetItemInfo(itemID)
-        link = link or ("Item " .. itemID)
-
-        local row = CreateFrame("Frame", nil, content)
-        row:SetSize(340, 20)
-        row:SetPoint("TOPLEFT", 10, y)
-
-        local text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        text:SetPoint("LEFT")
-        text:SetText(link)
-
-        local removeBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        removeBtn:SetSize(60, 20)
-        removeBtn:SetPoint("RIGHT")
-        removeBtn:SetText("Remove")
-        removeBtn:SetScript("OnClick", function()
-            MAV:RemoveItem(itemID)
+        row:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if self.itemID then GameTooltip:SetHyperlink("item:" .. self.itemID) end
+            GameTooltip:Show()
+            self.bg:SetTexture(0.2, 0.2, 0.2, 0.4)
         end)
 
-        y = y - 25
-    end
-
-    content:SetHeight(math.abs(y))
-end
----------------------------------------------------------
--- VENDOR BUTTON (under NPC name, WotLK compatible)
----------------------------------------------------------
-local mavVendorButton = nil
-
-local function CreateVendorButton()
-    if not MerchantFrame or not MerchantNameText then return end
-
-    if not mavVendorButton then
-        mavVendorButton = CreateFrame("Button", "MyAutoVendorVendorButton", MerchantFrame, "UIPanelButtonTemplate")
-        mavVendorButton:SetSize(120, 22)
-        mavVendorButton:SetText("MyAutoVendor")
-
-        -- Correct WotLK title frame
-        mavVendorButton:SetPoint("TOPLEFT", MerchantNameText, "BOTTOMLEFT", 0, -8)
-
-        mavVendorButton:SetScript("OnClick", function()
-            MyAutoVendor:OpenUI()
-        end)
-    end
-
-    mavVendorButton:Show()
-end
-
----------------------------------------------------------
--- HOOK INTO MERCHANT_SHOW
----------------------------------------------------------
-function MyAutoVendor:MERCHANT_SHOW()
-    CreateVendorButton()
-
-    -- Your auto-sell logic continues here
-end
-
-local ADDON_NAME = ...
-local MAV = MyAutoVendor
-
----------------------------------------------------------
--- MAIN WINDOW
----------------------------------------------------------
-local frame = nil
-
-function MAV:OpenUI()
-    if frame and frame:IsShown() then
-        frame:Hide()
-        return
-    end
-
-    frame = CreateFrame("Frame", "MyAutoVendorUI", UIParent)
-    frame:SetSize(400, 450)
-    frame:SetPoint("CENTER")
-    frame:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 }
-    })
-    frame:SetMovable(true)
-    frame:EnableMouse(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", frame.StartMoving)
-    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-
-    -----------------------------------------------------
-    -- TITLE
-    -----------------------------------------------------
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-    title:SetPoint("TOP", 0, -10)
-    title:SetText("MyAutoVendor")
-
-    -----------------------------------------------------
-    -- TAB BUTTONS
-    -----------------------------------------------------
-    local keepTab = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    keepTab:SetSize(80, 25)
-    keepTab:SetPoint("TOPLEFT", 20, -40)
-    keepTab:SetText("Keep")
-    keepTab:SetScript("OnClick", function()
-        MAV.activeTab = "keep"
-        MAV:RefreshUI()
-    end)
-
-    local sellTab = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    sellTab:SetSize(80, 25)
-    sellTab:SetPoint("TOPLEFT", 110, -40)
-    sellTab:SetText("Sell")
-    sellTab:SetScript("OnClick", function()
-        MAV.activeTab = "sell"
-        MAV:RefreshUI()
-    end)
-
-    -----------------------------------------------------
-    -- DRAG & DROP ZONE
-    -----------------------------------------------------
-    local dropZone = CreateFrame("Frame", nil, frame)
-    dropZone:SetSize(360, 40)
-    dropZone:SetPoint("TOP", 0, -90)
-    dropZone:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 }
-    })
-    dropZone:SetBackdropColor(0, 0, 0, 0.4)
-
-    local dzText = dropZone:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    dzText:SetPoint("CENTER")
-    dzText:SetText("Drop item here to add")
-
-    dropZone:SetScript("OnMouseUp", function()
-        MAV:HandleDrop()
-    end)
-
-    -----------------------------------------------------
-    -- SCROLL FRAME
-    -----------------------------------------------------
-    local scrollFrame = CreateFrame("ScrollFrame", "MyAutoVendorScroll", frame, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", 20, -140)
-    scrollFrame:SetSize(360, 260)
-
-    local content = CreateFrame("Frame", nil, scrollFrame)
-    content:SetSize(360, 260)
-    scrollFrame:SetScrollChild(content)
-
-    MAV.activeScroll = content
-
-    -----------------------------------------------------
-    -- CLOSE BUTTON
-    -----------------------------------------------------
-    local closeBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    closeBtn:SetSize(80, 25)
-    closeBtn:SetPoint("BOTTOM", 0, 20)
-    closeBtn:SetText("Close")
-    closeBtn:SetScript("OnClick", function() frame:Hide() end)
-
-    MAV.activeTab = MAV.activeTab or "keep"
-    MAV:RefreshUI()
-end
-
----------------------------------------------------------
--- REFRESH UI
----------------------------------------------------------
-function MAV:RefreshUI()
-    if not frame or not MAV.activeScroll then return end
-
-    local list = (MAV.activeTab == "keep") and MyAutoVendorDB.keepList or MyAutoVendorDB.sellList
-
-    local content = MAV.activeScroll
-    for _, child in ipairs({ content:GetChildren() }) do
-        child:Hide()
-        child:SetParent(nil)
-    end
-
-    local y = -10
-
-    for itemID, _ in pairs(list) do
-        local name, link = GetItemInfo(itemID)
-        link = link or ("Item " .. itemID)
-
-        local row = CreateFrame("Frame", nil, content)
-        row:SetSize(340, 20)
-        row:SetPoint("TOPLEFT", 10, y)
-
-        local text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        text:SetPoint("LEFT")
-        text:SetText(link)
-
-        local removeBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        removeBtn:SetSize(60, 20)
-        removeBtn:SetPoint("RIGHT")
-        removeBtn:SetText("Remove")
-        removeBtn:SetScript("OnClick", function()
-            MAV:RemoveItem(itemID)
+        row:SetScript("OnLeave", function(self)
+            GameTooltip:Hide()
+            row.bg:SetTexture(0, 0, 0, i % 2 == 0 and 0.18 or 0.12)
         end)
 
-        y = y - 25
+        ROWS[i] = row
     end
 
-    content:SetHeight(math.abs(y))
+    ---------------------------------------------------------------------
+    -- DROP ZONE
+    ---------------------------------------------------------------------
+    local drop = CreateFrame("Button", nil, frame)
+    drop:SetSize(440, 64)
+    drop:SetPoint("BOTTOMLEFT", 16, 120)
+
+    drop.bg = drop:CreateTexture(nil, "BACKGROUND")
+    drop.bg:SetAllPoints()
+    drop.bg:SetTexture(0.06, 0.06, 0.06, 0.6)
+
+    drop.label = drop:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    drop.label:SetPoint("CENTER")
+    drop.label:SetText("Drop items her for at tilføje til Sell-listen")
+
+    drop:SetScript("OnReceiveDrag", function()
+        local t, item = GetCursorInfo()
+        if t ~= "item" then return end
+
+        local itemID = tonumber(item) or tonumber(item:match("item:(%d+)"))
+        if not itemID then return end
+
+        local db = GetCharDB()
+        db.sellList[itemID] = { ts = time(), link = "item:" .. itemID }
+
+        addon.activeTab = "sell"
+        safe(addon.RefreshUI, addon)
+
+        ClearCursor()
+        print("MyAutoVendor: Tilføjet", itemID)
+    end)
+
+    ---------------------------------------------------------------------
+    -- INPUT + BUTTONS
+    ---------------------------------------------------------------------
+    local input = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
+    input:SetPoint("BOTTOMLEFT", 16, 16)
+    input:SetSize(300, 24)
+    input:SetAutoFocus(false)
+
+    local clearBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    clearBtn:SetSize(70, 24)
+    clearBtn:SetPoint("BOTTOMRIGHT", -16, 16)
+    clearBtn:SetText("Clear")
+    clearBtn:SetScript("OnClick", function()
+        local db = GetCharDB()
+        if addon.activeTab == "sell" then db.sellList = {} else db.keepList = {} end
+        safe(addon.RefreshUI, addon)
+    end)
+
+    local removeBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    removeBtn:SetSize(70, 24)
+    removeBtn:SetPoint("RIGHT", clearBtn, "LEFT", -8, 0)
+    removeBtn:SetText("Remove")
+    removeBtn:SetScript("OnClick", function()
+        local sel = content.selected
+        if not sel then return end
+        local row = ROWS[sel]
+        if not row.itemID then return end
+        safe(addon.RemoveItem, addon, row.itemID)
+    end)
+
+    local addBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    addBtn:SetSize(60, 24)
+    addBtn:SetPoint("RIGHT", removeBtn, "LEFT", -8, 0)
+    addBtn:SetText("Add")
+    addBtn:SetScript("OnClick", function()
+        local id = tonumber(input:GetText())
+        if not id then return end
+        safe(addon.AddItem, addon, id)
+        input:SetText("")
+    end)
+
+    local undoBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    undoBtn:SetSize(70, 24)
+    undoBtn:SetPoint("RIGHT", addBtn, "LEFT", -8, 0)
+    undoBtn:SetText("Undo")
+    undoBtn:SetScript("OnClick", function()
+        safe(addon.Undo, addon)
+    end)
+
+    local optBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    optBtn:SetSize(90, 24)
+    optBtn:SetPoint("RIGHT", undoBtn, "LEFT", -8, 0)
+    optBtn:SetText("Options")
+    optBtn:SetScript("OnClick", function()
+        local ACD = LibStub("AceConfigDialog-3.0", true)
+        if ACD then ACD:Open("MyAutoVendor") end
+    end)
+
+    ---------------------------------------------------------------------
+    -- REFRESH UI
+    ---------------------------------------------------------------------
+    function addon:RefreshUI()
+        local db = GetCharDB()
+        local list = addon.activeTab == "sell" and db.sellList or db.keepList
+
+        local ids = {}
+        for id,_ in pairs(list) do table.insert(ids, id) end
+        table.sort(ids)
+
+        for i,row in ipairs(ROWS) do
+            local id = ids[i]
+            if id then
+                row.itemID = id
+                local name, _, _, _, _, _, _, _, _, icon = GetItemInfo(id)
+                row.icon:SetTexture(icon or "")
+                row.text:SetText(name or ("item:" .. id))
+                row:Show()
+            else
+                row.itemID = nil
+                row.text:SetText("")
+                row.icon:SetTexture("")
+                row:Hide()
+            end
+        end
+
+        tabKeep:SetActive(addon.activeTab == "keep")
+        tabSell:SetActive(addon.activeTab == "sell")
+    end
+
+    ---------------------------------------------------------------------
+    -- TAB CLICK HANDLERS
+    ---------------------------------------------------------------------
+    tabKeep:SetScript("OnClick", function()
+        addon.activeTab = "keep"
+        safe(addon.RefreshUI, addon)
+    end)
+
+    tabSell:SetScript("OnClick", function()
+        addon.activeTab = "sell"
+        safe(addon.RefreshUI, addon)
+    end)
+
+    addon.UIFrame = frame
+    return frame
 end
+
+---------------------------------------------------------------------
+-- TOGGLE UI
+---------------------------------------------------------------------
+function addon:ToggleUI()
+    local f = addon.UIFrame or CreateMainFrame()
+    if f:IsShown() then
+        f:Hide()
+    else
+        f:Show()
+        safe(addon.RefreshUI, addon)
+    end
+end
+
+---------------------------------------------------------------------
+-- MERCHANT BUTTON
+---------------------------------------------------------------------
+local ev = CreateFrame("Frame")
+ev:RegisterEvent("MERCHANT_SHOW")
+ev:RegisterEvent("MERCHANT_CLOSED")
+ev:SetScript("OnEvent", function(_, e)
+    if e == "MERCHANT_SHOW" then
+        if not MyAutoVendorVendorButton then
+            local btn = CreateFrame("Button", "MyAutoVendorVendorButton", MerchantFrame, "UIPanelButtonTemplate")
+            btn:SetSize(80, 24)
+            btn:SetPoint("TOPRIGHT", -36, -36)
+            btn:SetText("MyAV")
+            btn:SetScript("OnClick", function() addon:ToggleUI() end)
+        end
+        MyAutoVendorVendorButton:Show()
+    else
+        if MyAutoVendorVendorButton then MyAutoVendorVendorButton:Hide() end
+    end
+end)
+
+---------------------------------------------------------------------
+-- INIT
+---------------------------------------------------------------------
+local init = CreateFrame("Frame")
+init:RegisterEvent("ADDON_LOADED")
+init:SetScript("OnEvent", function(_,_,name)
+    if name == ADDON_NAME then
+        CreateMainFrame()
+        safe(addon.RefreshUI, addon)
+    end
+end)
