@@ -1,0 +1,12 @@
+## Interface: 30400
+## Title: MyAutoVendor
+## Notes: Auto vendor addon using Ace3
+## Author: Christian
+## Version: 1.0
+## SavedVariables: MyAutoVendorDB
+## Dependencies: Ace3
+
+Core.lua
+UI.lua
+TabTooltips.lua
+Settings.lua
