@@ -240,7 +240,6 @@ function MyAutoVendor:OnMerchantShow()
                         local rules = db.autoKeepRules or defaults.char.autoKeepRules
                         local minIlvl = tonumber(rules.minIlvl) or 0
                         local protectedItem = itemType == "Container"
-                            or itemType == "Weapon"
                             or itemType == "Projectile"
                             or itemType == "Ammo"
                             or itemSubType == "Tools"

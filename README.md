@@ -53,6 +53,10 @@ This addon uses Ace3 and LibStub. It is intended for classic or retail-style WoW
 
 ## Changelog
 
+### v1.0.1
+
+- Fixed automatic selling of low-level weapons below the configured item-level threshold
+
 ### v1.0.0
 
 - Initial release
