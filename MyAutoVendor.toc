@@ -2,7 +2,7 @@
 ## Title: MyAutoVendor
 ## Notes: Auto vendor addon using Ace3
 ## Author: Christian
-## Version: 1.0
+## Version: 1.0.1
 ## SavedVariables: MyAutoVendorDB
 ## Dependencies: Ace3
 

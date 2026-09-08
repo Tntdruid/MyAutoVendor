@@ -1,6 +1,16 @@
 # MyAutoVendor
 
+[![WoW Era](https://img.shields.io/badge/World%20of%20Warcraft-Era-1f8dd6)](https://worldofwarcraft.blizzard.com/)
+[![WoTLK 3.3.5a](https://img.shields.io/badge/World%20of%20Warcraft-WoTLK%203.3.5a-0b6e99)](https://worldofwarcraft.blizzard.com/)
+
 MyAutoVendor is a lightweight World of Warcraft addon for automatically managing vendor sales and protected items. It helps you keep valuable gear, consumables, and quest items while selling junk efficiently.
+
+## Compatibility
+
+MyAutoVendor is intended for:
+
+- WoW Classic Era
+- WoTLK 3.3.5a
 
 ## Why use it?
 
