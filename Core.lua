@@ -187,7 +187,7 @@ function MyAutoVendor:SetupMinimap()
         OnClick = function() MyAutoVendor:ToggleUI() end,
         OnTooltipShow = function(tt)
             tt:AddLine("MyAutoVendor")
-            tt:AddLine("Klik for at åbne addon", 1,1,1)
+            tt:AddLine("Click to open the addon", 1,1,1)
         end,
     })
 
@@ -280,7 +280,7 @@ function MyAutoVendor:OnMerchantShow()
     end
 
     if #soldItems > 0 then
-        print("|cff00ff00Solgte " .. #soldItems .. " item(s):|r")
+        print("|cff00ff00Sold " .. #soldItems .. " item(s):|r")
         for _, info in ipairs(soldItems) do
             print(string.format(
                 " - %s x%d (vendor: %s; samlet: %s)",
@@ -299,7 +299,7 @@ end
 ---------------------------------------------------------------------
 function MyAutoVendor:AddItem(input)
     local id = toItemId(input)
-    if not id then return print("Ugyldigt item") end
+    if not id then return print("Invalid item") end
 
     local name = GetItemInfo(id) or ("item:"..id)
 
@@ -316,7 +316,7 @@ function MyAutoVendor:AddItem(input)
 
     list[id] = { ts = time(), link = "item:"..id }
 
-    print("Tilføjet: " .. name)
+    print("Added: " .. name)
     if self.RefreshUI then self:RefreshUI() end
 end
 
@@ -338,14 +338,14 @@ function MyAutoVendor:RemoveItem(input)
     if list[id] then
         table.insert(self._undoStack, { id=id, meta=list[id], tab=self.activeTab })
         list[id] = nil
-        print("Fjernet " .. id .. " (kan fortrydes)")
+        print("Removed " .. id .. " (can be undone)")
         if self.RefreshUI then self:RefreshUI() end
     end
 end
 
 function MyAutoVendor:Undo()
     local u = table.remove(self._undoStack)
-    if not u then return print("Intet at fortryde") end
+    if not u then return print("Nothing to undo") end
 
     local listName =
         u.tab == "sell"       and "sellList" or
@@ -360,7 +360,7 @@ function MyAutoVendor:Undo()
 
     list[u.id] = u.meta
 
-    print("Fortrudt fjernelse af " .. u.id)
+    print("Undid removal of " .. u.id)
     if self.RefreshUI then self:RefreshUI() end
 end
 
@@ -370,6 +370,6 @@ end
 function MyAutoVendor:HandleSlash(msg)
     if msg == "ui" then return self:ToggleUI() end
     if msg == "undo" then return self:Undo() end
-    print("/mav ui  - åbner UI")
-    print("/mav undo - fortryd sidste fjernelse")
+    print("/mav ui  - opens the UI")
+    print("/mav undo - undo the last removal")
 end

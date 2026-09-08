@@ -164,7 +164,7 @@ local function CreateMainFrame()
 
     drop.label = drop:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     drop.label:SetPoint("CENTER")
-    drop.label:SetText("Drop items her for at tilføje til listen")
+    drop.label:SetText("Drop items here to add them to the list")
 
     drop:SetScript("OnReceiveDrag", function()
         local t, item = GetCursorInfo()
