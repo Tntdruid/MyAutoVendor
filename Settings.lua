@@ -12,8 +12,8 @@ function addon:OpenSettingsWindow()
     local frame = AceGUI:Create("Frame")
     addon.SettingsWindow = frame
 
-    frame:SetTitle("MyAutoVendor Settings")
-    frame:SetStatusText("Auto-keep and item-level settings")
+    frame:SetTitle(addon:T("settings"))
+    frame:SetStatusText(addon:T("settingsStatus"))
     frame:SetLayout("Flow")
     frame:SetWidth(480)
     frame:SetHeight(420)
@@ -27,7 +27,7 @@ function addon:OpenSettingsWindow()
     -- LEFT GROUP (AUTO KEEP RULES)
     ---------------------------------------------------------
     local left = AceGUI:Create("InlineGroup")
-    left:SetTitle("Auto-keep rules")
+    left:SetTitle(addon:T("autoKeepRules"))
     left:SetWidth(220)
     left:SetLayout("List")
     frame:AddChild(left)
@@ -43,16 +43,16 @@ function addon:OpenSettingsWindow()
         checkboxes[key] = chk
     end
 
-    AddCheck("Keep consumables", "keepConsumables")
-    AddCheck("Keep quest items", "keepQuest")
-    AddCheck("Keep gear", "keepGear")
-    AddCheck("Keep profession materials", "keepProfessionMats")
+    AddCheck(addon:T("keepConsumables"), "keepConsumables")
+    AddCheck(addon:T("keepQuest"), "keepQuest")
+    AddCheck(addon:T("keepGear"), "keepGear")
+    AddCheck(addon:T("keepProfessionMats"), "keepProfessionMats")
 
     ---------------------------------------------------------
     -- RIGHT GROUP (ITEM LEVEL)
     ---------------------------------------------------------
     local right = AceGUI:Create("InlineGroup")
-    right:SetTitle("Item-level rules")
+    right:SetTitle(addon:T("itemLevelRules"))
     right:SetWidth(220)
     right:SetLayout("List")
     frame:AddChild(right)
@@ -69,24 +69,24 @@ function addon:OpenSettingsWindow()
     end
 
     local minSlider = AceGUI:Create("Slider")
-    minSlider:SetLabel("Minimum Item Level")
+    minSlider:SetLabel(addon:T("minItemLevel"))
     minSlider:SetSliderValues(0, 300, 1)
     minSlider:SetValue(rules.minIlvl)
     minSlider:SetCallback("OnValueChanged", function(_, _, val)
         addon.char[addon._charKey].autoKeepRules.minIlvl = val
     end)
-    AddSliderTooltip(minSlider, "Items below this item level are sold automatically unless protected.")
+    AddSliderTooltip(minSlider, addon:T("minTooltip"))
     right:AddChild(minSlider)
     sliders.minIlvl = minSlider
 
     local maxSlider = AceGUI:Create("Slider")
-    maxSlider:SetLabel("Maximum Item Level")
+    maxSlider:SetLabel(addon:T("maxItemLevel"))
     maxSlider:SetSliderValues(0, 300, 1)
     maxSlider:SetValue(rules.maxIlvl)
     maxSlider:SetCallback("OnValueChanged", function(_, _, val)
         addon.char[addon._charKey].autoKeepRules.maxIlvl = val
     end)
-    AddSliderTooltip(maxSlider, "Items above this item level are kept when gear auto-keep is enabled.")
+    AddSliderTooltip(maxSlider, addon:T("maxTooltip"))
     right:AddChild(maxSlider)
     sliders.maxIlvl = maxSlider
 
@@ -104,7 +104,7 @@ function addon:OpenSettingsWindow()
     -- CLOSE BUTTON
     ---------------------------------------------------------
     local closeBtn = AceGUI:Create("Button")
-    closeBtn:SetText("Close")
+    closeBtn:SetText(addon:T("close"))
     closeBtn:SetWidth(120)
     closeBtn:SetCallback("OnClick", function()
         frame:Hide()

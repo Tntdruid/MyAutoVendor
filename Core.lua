@@ -7,11 +7,19 @@ local MyAutoVendor = LibStub("AceAddon-3.0"):NewAddon(
 )
 _G[ADDON_NAME] = MyAutoVendor
 
+-- Keep the addon usable if an older client does not load the optional locale file.
+if not MyAutoVendor.T then
+    function MyAutoVendor:T(key)
+        return key
+    end
+end
+
 local AceDB = LibStub("AceDB-3.0")
 
 local defaults = {
     profile = {
         autoSell = true,
+        language = "en",
         minimap = {},
         globalSellList = {},   -- ★ GLOBAL SELL LIST
         globalKeepList = {},   -- ★ GLOBAL KEEP LIST
@@ -131,7 +139,7 @@ function MyAutoVendor:EvaluateAutoKeep(itemID)
     local gearInRange = hasItemLevel and (itemLevel >= minIlvl and itemLevel <= maxIlvl)
 
     if rules.keepGear and hasItemLevel and equipLoc and equipLoc ~= "" and gearInRange then
-        db.keepList[itemID] = { ts = time(), link = "item:"..itemID }
+        db.keepList[itemID] = { ts = time(), link = "item:"..itemID, auto = true }
         return
     end
 
@@ -187,7 +195,7 @@ function MyAutoVendor:SetupMinimap()
         OnClick = function() MyAutoVendor:ToggleUI() end,
         OnTooltipShow = function(tt)
             tt:AddLine("MyAutoVendor")
-            tt:AddLine("Click to open the addon", 1,1,1)
+            tt:AddLine(MyAutoVendor:T("clickOpen"), 1,1,1)
         end,
     })
 
@@ -234,11 +242,18 @@ function MyAutoVendor:OnMerchantShow()
                             globalSell[id] = nil
                         end
 
-                        -- Global Keep overrides Sell; Sell overrides local/automatic Keep.
-                        local explicitSell = db.sellList[id] or (globalSell[id] and not (hardcodedKeep or ammoKeep))
-                        local keep = globalKeep[id] or db.keepList[id] or hardcodedKeep or ammoKeep
                         local rules = db.autoKeepRules or defaults.char.autoKeepRules
                         local minIlvl = tonumber(rules.minIlvl) or 0
+                        local autoKeepEntry = db.keepList[id]
+                        local isLowGear = itemLevel and itemLevel < minIlvl
+                        if autoKeepEntry and not autoKeepEntry.manual and isLowGear and equipLoc and equipLoc ~= "" then
+                            db.keepList[id] = nil
+                            autoKeepEntry = nil
+                        end
+
+                        -- Global Keep overrides Sell; Sell overrides local/automatic Keep.
+                        local explicitSell = db.sellList[id] or (globalSell[id] and not (hardcodedKeep or ammoKeep))
+                        local keep = globalKeep[id] or autoKeepEntry or hardcodedKeep or ammoKeep
                         local protectedItem = itemType == "Container"
                             or itemType == "Projectile"
                             or itemType == "Ammo"
@@ -246,15 +261,17 @@ function MyAutoVendor:OnMerchantShow()
                             or itemSubType == "Miscellaneous"
                             or itemSubType == "Arrow"
                             or itemSubType == "Bullet"
+                        local vendorPrice = select(11, GetItemInfo(id)) or 0
                         local autoSellLowGear = not protectedItem
                             and equipLoc and equipLoc ~= ""
                             and itemLevel and itemLevel < minIlvl
+                            and vendorPrice > 0
                         local shouldSell = explicitSell or (autoSellLowGear and not keep)
 
                         if shouldSell and not globalKeep[id] then
                             -- SELL (local, global, or below the automatic gear threshold)
                             local itemName = name
-                            local price = select(11, GetItemInfo(id)) or 0
+                            local price = vendorPrice
                             local _, count = GetContainerItemInfo(bag, slot)
                             count = count or 1
 
@@ -279,17 +296,11 @@ function MyAutoVendor:OnMerchantShow()
     end
 
     if #soldItems > 0 then
-        print("|cff00ff00Sold " .. #soldItems .. " item(s):|r")
+        print("|cff00ff00" .. self:T("sold"):format(#soldItems) .. "|r")
         for _, info in ipairs(soldItems) do
-            print(string.format(
-                " - %s x%d (vendor: %s; samlet: %s)",
-                info.name,
-                info.count,
-                FormatCopper(info.price),
-                FormatCopper(info.value)
-            ))
+            print(string.format(" - %s x%d", info.name, info.count))
         end
-        print("|cffffff00Total: " .. FormatCopper(total) .. "|r")
+        print("|cffffff00" .. self:T("totalSold") .. FormatCopper(total) .. "|r")
     end
 end
 
@@ -298,7 +309,7 @@ end
 ---------------------------------------------------------------------
 function MyAutoVendor:AddItem(input)
     local id = toItemId(input)
-    if not id then return print("Invalid item") end
+    if not id then return print(self:T("invalidItem")) end
 
     local name = GetItemInfo(id) or ("item:"..id)
 
@@ -313,9 +324,9 @@ function MyAutoVendor:AddItem(input)
         listName == "globalKeepList" and self.profile.globalKeepList or
         self.char[self._charKey][listName]
 
-    list[id] = { ts = time(), link = "item:"..id }
+    list[id] = { ts = time(), link = "item:"..id, manual = listName == "keepList" }
 
-    print("Added: " .. name)
+    print(self:T("added") .. name)
     if self.RefreshUI then self:RefreshUI() end
 end
 
@@ -337,14 +348,14 @@ function MyAutoVendor:RemoveItem(input)
     if list[id] then
         table.insert(self._undoStack, { id=id, meta=list[id], tab=self.activeTab })
         list[id] = nil
-        print("Removed " .. id .. " (can be undone)")
+        print(self:T("removed"):format(id))
         if self.RefreshUI then self:RefreshUI() end
     end
 end
 
 function MyAutoVendor:Undo()
     local u = table.remove(self._undoStack)
-    if not u then return print("Nothing to undo") end
+    if not u then return print(self:T("nothingUndo")) end
 
     local listName =
         u.tab == "sell"       and "sellList" or
@@ -359,7 +370,7 @@ function MyAutoVendor:Undo()
 
     list[u.id] = u.meta
 
-    print("Undid removal of " .. u.id)
+    print(self:T("undone"):format(u.id))
     if self.RefreshUI then self:RefreshUI() end
 end
 
@@ -369,6 +380,13 @@ end
 function MyAutoVendor:HandleSlash(msg)
     if msg == "ui" then return self:ToggleUI() end
     if msg == "undo" then return self:Undo() end
-    print("/mav ui  - opens the UI")
-    print("/mav undo - undo the last removal")
+    local language = msg:match("^lang%s+(%S+)$")
+    if language and self.Languages[language] then
+        self.profile.language = language
+        print(self:T("languageSet"):format(self:T("languageName")))
+        return ReloadUI()
+    end
+    print(self:T("slashUi"))
+    print(self:T("slashUndo"))
+    print(self:T("slashLang"))
 end

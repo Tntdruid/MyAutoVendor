@@ -1,15 +1,11 @@
 # MyAutoVendor
 
-[![WoW Era](https://img.shields.io/badge/World%20of%20Warcraft-Era-1f8dd6)]
-[![WoTLK 3.3.5a](https://img.shields.io/badge/World%20of%20Warcraft-WoTLK%203.3.5a-0b6e99)]
-
 MyAutoVendor is a lightweight World of Warcraft addon for automatically managing vendor sales and protected items. It helps you keep valuable gear, consumables, and quest items while selling junk efficiently.
 
 ## Compatibility
 
 MyAutoVendor is intended for:
 
-- WoW Classic Era
 - WoTLK 3.3.5a
 
 ## Why use it?
@@ -48,6 +44,8 @@ Example install path:
 
 - `/mav ui` — open the addon UI
 - `/mav undo` — undo the last removal
+- `/mav lang en` — use English
+- `/mav lang da` — use Danish
 
 ## Project structure
 
@@ -55,6 +53,7 @@ Example install path:
 - `UI.lua` — main addon interface and list management
 - `Settings.lua` — per-character item-level and keep settings
 - `TabTooltips.lua` — tooltip help for the UI tabs
+- `Locale.lua` — English and Danish translations
 - `MyAutoVendor.toc` — addon metadata and load order
 
 ## Notes

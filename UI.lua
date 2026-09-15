@@ -80,10 +80,10 @@ local function CreateMainFrame()
         return btn
     end
 
-    local tabKeep       = MakeTab(16,  "Keep")
-    local tabSell       = MakeTab(140, "Sell")
-    local tabGlobalKeep = MakeTab(264, "Global Keep")
-    local tabGlobalSell = MakeTab(388, "Global Sell")
+    local tabKeep       = MakeTab(16,  addon:T("keep"))
+    local tabSell       = MakeTab(140, addon:T("sell"))
+    local tabGlobalKeep = MakeTab(264, addon:T("globalKeep"))
+    local tabGlobalSell = MakeTab(388, addon:T("globalSell"))
 
     ---------------------------------------------------------------------
     -- TOOLTIP SETUP (fra TabTooltips.lua)
@@ -164,7 +164,7 @@ local function CreateMainFrame()
 
     drop.label = drop:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     drop.label:SetPoint("CENTER")
-    drop.label:SetText("Drop items here to add them to the list")
+    drop.label:SetText(addon:T("dropItems"))
 
     drop:SetScript("OnReceiveDrag", function()
         local t, item = GetCursorInfo()
@@ -180,7 +180,7 @@ local function CreateMainFrame()
         elseif addon.activeTab == "sell" then
             CharDB().sellList[itemID] = { ts = time(), link = "item:"..itemID }
         else
-            CharDB().keepList[itemID] = { ts = time(), link = "item:"..itemID }
+            CharDB().keepList[itemID] = { ts = time(), link = "item:"..itemID, manual = true }
         end
 
         addon:RefreshUI()
@@ -206,7 +206,7 @@ local function CreateMainFrame()
     local optBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     optBtn:SetSize(90, 24)
     optBtn:SetPoint("BOTTOMRIGHT", -16, 16)
-    optBtn:SetText("Options")
+    optBtn:SetText(addon:T("options"))
     SkinButton(optBtn)
     optBtn:SetScript("OnClick", function()
         addon:OpenSettingsWindow()
@@ -215,7 +215,7 @@ local function CreateMainFrame()
     local undoBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     undoBtn:SetSize(70, 24)
     undoBtn:SetPoint("RIGHT", optBtn, "LEFT", -8, 0)
-    undoBtn:SetText("Undo")
+    undoBtn:SetText(addon:T("undo"))
     SkinButton(undoBtn)
     undoBtn:SetScript("OnClick", function()
         addon:Undo()
@@ -224,7 +224,7 @@ local function CreateMainFrame()
     local clearBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     clearBtn:SetSize(70, 24)
     clearBtn:SetPoint("RIGHT", undoBtn, "LEFT", -8, 0)
-    clearBtn:SetText("Clear")
+    clearBtn:SetText(addon:T("clear"))
     SkinButton(clearBtn)
     clearBtn:SetScript("OnClick", function()
         if addon.activeTab == "globalSell" then
