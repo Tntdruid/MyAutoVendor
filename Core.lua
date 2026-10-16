@@ -105,10 +105,6 @@ function MyAutoVendor:EvaluateAutoKeep(itemID)
     local rules = db.autoKeepRules or defaults.char.autoKeepRules
     local global = self.profile.globalKeepList
 
-    local db = self.char[self._charKey]
-    local rules = db.autoKeepRules or defaults.char.autoKeepRules
-    local global = self.profile.globalKeepList
-
     -- An explicit sell rule must not be converted into an auto-keep rule.
     if db.sellList[itemID] or self.profile.globalSellList[itemID] then
         return
@@ -151,6 +147,66 @@ function MyAutoVendor:EvaluateAutoKeep(itemID)
 end
 
 ---------------------------------------------------------------------
+-- PRUNE KEEP LIST (dynamic re-evaluation against current rules)
+---------------------------------------------------------------------
+-- Removes auto-added keep entries (never manually pinned) that no longer
+-- satisfy the current auto-keep rules, e.g. gear that fell below/above the
+-- ilvl range, or consumables/gear/profession mats whose rule got disabled.
+-- Also removes any keep entry whose item is on the local or global sell list.
+function MyAutoVendor:PruneKeepList()
+    local db = self.char[self._charKey]
+    local rules = db.autoKeepRules or defaults.char.autoKeepRules
+    local minIlvl = tonumber(rules.minIlvl) or 0
+    local maxIlvl = tonumber(rules.maxIlvl) or math.huge
+
+    local globalSell = self.profile.globalSellList
+
+    local changed = false
+    for id, entry in pairs(db.keepList) do
+        -- Sell overrides local Keep, so an item on a sell list is dropped from Keep.
+        if db.sellList[id] or globalSell[id] then
+            db.keepList[id] = nil
+            changed = true
+        elseif not entry.manual then
+            local name, _, _, itemLevel, _, itemType, itemSubType, _, equipLoc = GetItemInfo(id)
+            if name then
+                local hardcodedKeep = IsHardcodedKeepName(name)
+                local ammoKeep = itemType == "Projectile" or itemType == "Ammo"
+                    or itemSubType == "Arrow" or itemSubType == "Bullet"
+
+                if not hardcodedKeep and not ammoKeep then
+                    local isGear = equipLoc and equipLoc ~= ""
+                    local hasItemLevel = type(itemLevel) == "number" and itemLevel > 0
+                    local keepThis
+
+                    if isGear then
+                        keepThis = rules.keepGear and hasItemLevel
+                            and itemLevel >= minIlvl and itemLevel <= maxIlvl
+                    elseif itemType == "Consumable" then
+                        keepThis = rules.keepConsumables
+                    elseif itemType == "Quest" then
+                        keepThis = rules.keepQuest
+                    elseif itemType == "Trade Goods" then
+                        keepThis = rules.keepProfessionMats
+                    else
+                        keepThis = true
+                    end
+
+                    if not keepThis then
+                        db.keepList[id] = nil
+                        changed = true
+                    end
+                end
+            end
+        end
+    end
+
+    if changed and self.RefreshUI then
+        self:RefreshUI()
+    end
+end
+
+---------------------------------------------------------------------
 -- INIT
 ---------------------------------------------------------------------
 function MyAutoVendor:OnInitialize()
@@ -178,6 +234,7 @@ end
 
 function MyAutoVendor:OnEnable()
     self:RegisterEvent("MERCHANT_SHOW", "OnMerchantShow")
+    self:PruneKeepList()
 end
 
 ---------------------------------------------------------------------
@@ -207,6 +264,8 @@ end
 ---------------------------------------------------------------------
 function MyAutoVendor:OnMerchantShow()
     if not self.profile.autoSell then return end
+
+    self:PruneKeepList()
 
     local db = self.char[self._charKey]
     local globalSell = self.profile.globalSellList
@@ -245,11 +304,6 @@ function MyAutoVendor:OnMerchantShow()
                         local rules = db.autoKeepRules or defaults.char.autoKeepRules
                         local minIlvl = tonumber(rules.minIlvl) or 0
                         local autoKeepEntry = db.keepList[id]
-                        local isLowGear = itemLevel and itemLevel < minIlvl
-                        if autoKeepEntry and not autoKeepEntry.manual and isLowGear and equipLoc and equipLoc ~= "" then
-                            db.keepList[id] = nil
-                            autoKeepEntry = nil
-                        end
 
                         -- Global Keep overrides Sell; Sell overrides local/automatic Keep.
                         local explicitSell = db.sellList[id] or (globalSell[id] and not (hardcodedKeep or ammoKeep))
@@ -325,6 +379,10 @@ function MyAutoVendor:AddItem(input)
         self.char[self._charKey][listName]
 
     list[id] = { ts = time(), link = "item:"..id, manual = listName == "keepList" }
+
+    if listName == "sellList" or listName == "globalSellList" then
+        self:PruneKeepList()
+    end
 
     print(self:T("added") .. name)
     if self.RefreshUI then self:RefreshUI() end

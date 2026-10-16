@@ -183,6 +183,10 @@ local function CreateMainFrame()
             CharDB().keepList[itemID] = { ts = time(), link = "item:"..itemID, manual = true }
         end
 
+        if addon.activeTab == "sell" or addon.activeTab == "globalSell" then
+            addon:PruneKeepList()
+        end
+
         addon:RefreshUI()
         ClearCursor()
     end)
@@ -243,6 +247,8 @@ local function CreateMainFrame()
     -- REFRESH UI
     ---------------------------------------------------------------------
     function addon:RefreshUI()
+        addon:UpdateBagIcons()
+
         local db = CharDB()
         local globalSell = GlobalSellDB()
         local globalKeep = GlobalKeepDB()

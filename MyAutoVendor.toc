@@ -5,9 +5,12 @@
 ## Version: 1.0.1
 ## SavedVariables: MyAutoVendorDB
 ## Dependencies: Ace3
+## OptionalDeps: Bagnon
 
 Core.lua
 Locale.lua
 UI.lua
+BagIcons.lua
+ItemTooltip.lua
 TabTooltips.lua
 Settings.lua

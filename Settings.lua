@@ -38,6 +38,7 @@ function addon:OpenSettingsWindow()
         chk:SetValue(rules[key])
         chk:SetCallback("OnValueChanged", function(_, _, val)
             addon.char[addon._charKey].autoKeepRules[key] = val
+            addon:PruneKeepList()
         end)
         left:AddChild(chk)
         checkboxes[key] = chk
@@ -74,6 +75,7 @@ function addon:OpenSettingsWindow()
     minSlider:SetValue(rules.minIlvl)
     minSlider:SetCallback("OnValueChanged", function(_, _, val)
         addon.char[addon._charKey].autoKeepRules.minIlvl = val
+        addon:PruneKeepList()
     end)
     AddSliderTooltip(minSlider, addon:T("minTooltip"))
     right:AddChild(minSlider)
@@ -85,6 +87,7 @@ function addon:OpenSettingsWindow()
     maxSlider:SetValue(rules.maxIlvl)
     maxSlider:SetCallback("OnValueChanged", function(_, _, val)
         addon.char[addon._charKey].autoKeepRules.maxIlvl = val
+        addon:PruneKeepList()
     end)
     AddSliderTooltip(maxSlider, addon:T("maxTooltip"))
     right:AddChild(maxSlider)
