@@ -207,10 +207,53 @@ function MyAutoVendor:PruneKeepList()
 end
 
 ---------------------------------------------------------------------
+-- SHARED PROFILE
+---------------------------------------------------------------------
+-- Older saved variables gave every character its own AceDB profile, which
+-- made the "global" lists per character. Fold those lists into the shared
+-- Default profile once, then keep every character on Default.
+function MyAutoVendor:UseSharedProfile()
+    local db = self.db
+    local current = db:GetCurrentProfile()
+
+    if not db.global.profilesMerged and db.profiles then
+        db.profiles["Default"] = db.profiles["Default"] or {}
+        local target = db.profiles["Default"]
+
+        for name, profile in pairs(db.profiles) do
+            if name ~= "Default" then
+                for _, key in ipairs({ "globalSellList", "globalKeepList" }) do
+                    if type(profile[key]) == "table" then
+                        target[key] = target[key] or {}
+                        for id, meta in pairs(profile[key]) do
+                            if target[key][id] == nil then
+                                target[key][id] = meta
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        local currentProfile = db.profiles[current]
+        if target.language == nil and currentProfile and currentProfile.language then
+            target.language = currentProfile.language
+        end
+
+        db.global.profilesMerged = true
+    end
+
+    if current ~= "Default" then
+        db:SetProfile("Default")
+    end
+end
+
+---------------------------------------------------------------------
 -- INIT
 ---------------------------------------------------------------------
 function MyAutoVendor:OnInitialize()
     self.db = AceDB:New("MyAutoVendorDB", defaults, true)
+    self:UseSharedProfile()
     self.profile = self.db.profile
     self.char = self.db.char
     self._charKey = CharKey()
