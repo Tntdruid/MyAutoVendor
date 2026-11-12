@@ -61,6 +61,9 @@ end
 local infoWait = {}
 local merchantPending = false
 
+-- The vendor buyback tab only holds 12 items, so never sell more per visit.
+local MAX_SELL_PER_VISIT = 12
+
 local infoFrame = CreateFrame("Frame")
 infoFrame:RegisterEvent("ITEM_INFO_RECEIVED")
 infoFrame:SetScript("OnEvent", function(_, _, itemID)
@@ -276,7 +279,7 @@ function MyAutoVendor:OnInitialize()
 end
 
 function MyAutoVendor:OnEnable()
-    self:RegisterEvent("MERCHANT_SHOW", "OnMerchantShow")
+    self:RegisterEvent("MERCHANT_SHOW", "OnMerchantOpened")
     self:PruneKeepList()
 end
 
@@ -305,8 +308,15 @@ end
 ---------------------------------------------------------------------
 -- AUTO SELL (local + global) — UDEN GOTO
 ---------------------------------------------------------------------
+function MyAutoVendor:OnMerchantOpened()
+    self._soldThisVisit = 0
+    self:OnMerchantShow()
+end
+
 function MyAutoVendor:OnMerchantShow()
     if not self.profile.autoSell then return end
+
+    self._soldThisVisit = self._soldThisVisit or 0
 
     self:PruneKeepList()
 
@@ -316,6 +326,7 @@ function MyAutoVendor:OnMerchantShow()
 
     local soldItems = {}
     local total = 0
+    local remaining = 0
     merchantPending = false
 
     for bag = 0, 4 do
@@ -369,17 +380,23 @@ function MyAutoVendor:OnMerchantShow()
                             -- SELL (local, global, or below the automatic gear threshold)
                             local itemName = name
                             local price = vendorPrice
-                            local _, count = GetContainerItemInfo(bag, slot)
+                            local _, count, locked = GetContainerItemInfo(bag, slot)
                             count = count or 1
 
-                            local value = price * count
-                            total = total + value
+                            -- Locked slots are already being sold by an earlier pass.
+                            if not locked and self._soldThisVisit >= MAX_SELL_PER_VISIT then
+                                remaining = remaining + 1
+                            elseif not locked then
+                                local value = price * count
+                                total = total + value
 
-                            table.insert(soldItems, {
-                                id=id, name=itemName, count=count, price=price, value=value
-                            })
+                                table.insert(soldItems, {
+                                    id=id, name=itemName, count=count, price=price, value=value
+                                })
 
-                            UseContainerItem(bag, slot)
+                                self._soldThisVisit = self._soldThisVisit + 1
+                                UseContainerItem(bag, slot)
+                            end
                         end
                     end
                 end
@@ -398,6 +415,10 @@ function MyAutoVendor:OnMerchantShow()
             print(string.format(" - %s x%d", info.name, info.count))
         end
         print("|cffffff00" .. self:T("totalSold") .. FormatCopper(total) .. "|r")
+    end
+
+    if remaining > 0 then
+        print("|cffff8040" .. self:T("sellLimit"):format(MAX_SELL_PER_VISIT, remaining) .. "|r")
     end
 end
 
