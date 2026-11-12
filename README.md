@@ -62,6 +62,15 @@ This addon uses Ace3 and LibStub. It is intended for classic or retail-style WoW
 
 ## Changelog
 
+### Unreleased
+
+- Added a coin icon on bag items that are on the sell list (gold) or global sell list (silver), in the default bags and Bagnon
+- Added a tooltip line showing which MyAutoVendor lists an item is on
+- Changed keep lists so items on a sell list are removed from the character's keep list
+- Changed vendor selling to sell at most 12 items per visit, matching the vendor buyback limit
+- Fixed auto-kept items staying on the keep list after changing the auto-keep rules or item-level range
+- Fixed the global sell and keep lists not being shared between characters on the same account
+
 ### v1.0.1
 
 - Fixed automatic selling of low-level weapons below the configured item-level threshold
