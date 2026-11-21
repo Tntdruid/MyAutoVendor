@@ -1,4 +1,4 @@
-## Interface: 30400
+## Interface: 30300
 ## Title: MyAutoVendor
 ## Notes: Auto vendor addon using Ace3
 ## Author: Christian
